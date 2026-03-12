@@ -1,0 +1,199 @@
+---
+name: generate-meeting-notes
+description: >
+  自動化產生會議記錄的完整端到端流程。接受會議錄音檔（檔名含 YYYYMMDD 日期，例：
+  data_meeting_20260309.m4a），自動拆分音訊、上傳至 NotebookLM、等待 AI 處理、
+  用自定義 prompt 產生結構化會議記錄，並建立 Google Doc 移至公司 Shared Drive。
+  支援多種會議類型（data內會、pm會議、data教授會議等），每種類型各自對應獨立的
+  Notebook 與 Shared Drive 資料夾。
+  當使用者說「產生會議記錄」、「幫我處理這次的會議記錄」、「generate meeting notes」、
+  「處理錄音檔」、提到要把音訊上傳 NotebookLM 或將錄音轉成 Google Doc 會議記錄時，
+  請主動使用此 skill。
+allowed-tools: Bash, Read, Write
+---
+
+# Generate Meeting Notes
+
+將會議錄音自動轉換為 Google Doc 格式的結構化會議記錄。
+
+## 使用前提
+
+1. 已執行 NotebookLM 認證（首次設定時會引導）
+2. 已設定 Google Drive 認證（首次設定時會引導）
+3. 已完成首次設定（見下方）
+
+## 首次設定
+
+```bash
+cd {SKILL_BASE_DIR} && uv run scripts/setup.py
+```
+
+設定後產生 `~/.config/generate-meeting-notes/config.json`，結構如下：
+
+```json
+{
+  "meetings": {
+    "data內會": {
+      "notebook_name": "DataTeam 會議記錄",
+      "folder_id": "1ItMYP0...",
+      "folder_name": "週一週四_Data_內會",
+      "series_name": "Data內會",
+      "attendees": ["Fredrick", "Frank", "Mark", "Felix", "Nina"],
+      "custom_prompt": "本次會議報告順序固定如下：Fredrick → Frank → Mark → Felix，皆向 Nina（PM）報告。"
+    }
+  },
+  "prompt_path": "~/.config/generate-meeting-notes/prompt.md"
+}
+```
+
+**各欄位說明：**
+- `attendees`：固定與會者清單，腳本自動填入 Google Doc 的「與會者」欄位
+- `custom_prompt`：附加給 NotebookLM 的補充說明（例如報告順序、人名對照），有效提升講者辨識品質
+- `folder_name`：Slack 通知中顯示的雲端路徑名稱
+
+新增或修改會議類型：直接編輯 `~/.config/generate-meeting-notes/config.json`，在 `meetings` 下新增一個 key。
+
+## 執行流程（Agent 必讀）
+
+執行前必須依序向使用者確認以下資訊，**三個問題確認完畢才執行腳本**：
+
+### Step 1：確認音訊檔路徑
+
+如果使用者沒有提供音訊檔路徑，詢問：
+> 請提供音訊檔路徑（例：`~/Desktop/data_meeting_20260311.m4a`）
+
+### Step 2：確認會議類型
+
+讀取 config 取得可用的會議類型：
+
+```bash
+cat ~/.config/generate-meeting-notes/config.json
+```
+
+列出 `meetings` 的所有 key，詢問使用者：
+> 這是哪種會議？請選擇：
+> 1. data內會
+> 2. pm會議
+> 3. data教授會議
+
+### Step 3：確認 Slack channel
+
+先讀取 config，若該會議類型有設定 `slack_channel`（非空字串），直接使用並告知使用者：
+> 將發送通知到 config 設定的 channel（ID：`{slack_channel}`）。如需更改請告知。
+
+若 `slack_channel` 為空，詢問使用者：
+> 會議記錄完成後要發到哪個 Slack channel？（例：`#rd-team`、`#general`）
+
+### Step 4：執行腳本
+
+三個資訊都確認後執行：
+
+```bash
+cd {SKILL_BASE_DIR} && uv run scripts/generate_meeting_notes.py <audio_file_path> --meeting <meeting_key>
+```
+
+範例：
+```bash
+cd {SKILL_BASE_DIR} && uv run scripts/generate_meeting_notes.py ~/Desktop/data_professor_meeting_20260311.m4a --meeting data教授會議
+```
+
+`{SKILL_BASE_DIR}` 請替換為此 skill 的實際路徑（見系統訊息中的 "Base directory for this skill"）。
+
+### Step 4.5：解析匿名發言者（若有 [Speaker N] 佔位符）
+
+腳本產出的 Google Doc 中，若 NotebookLM 無法辨識人聲，會留下 `[Speaker 1]`、`[Speaker 2]` 等佔位符。
+
+**Agent 此時應：**
+
+1. 讀取 config 中該會議類型的 `attendees` 與 `custom_prompt`：
+   ```bash
+   cat ~/.config/generate-meeting-notes/config.json
+   ```
+2. 開啟 `RESULT_URL` 查看 Google Doc 內容（或請使用者貼上部分內容）
+3. 根據 `custom_prompt` 中的報告順序與 `attendees` 清單，推斷各 Speaker 對應誰
+4. **向使用者確認對應關係**，例如：
+   > 根據報告順序，我推測：
+   > - [Speaker 1] → Fredrick
+   > - [Speaker 2] → Frank
+   > - [Speaker 3] → Mark
+   >
+   > 是否正確？有需要調整嗎？
+5. 確認後，用腳本批次替換 Google Doc 中的佔位符：
+   ```bash
+   cd {SKILL_BASE_DIR} && uv run scripts/replace_speakers.py \
+     --doc-id <RESULT_URL 中的 doc id> \
+     --mapping "Speaker 1=Fredrick" "Speaker 2=Frank" "Speaker 3=Mark"
+   ```
+
+> **若 Google Doc 中沒有任何 `[Speaker N]`**，跳過此步驟。
+
+### Step 5：發送 Slack 通知
+
+使用可用的 Slack MCP（例如 `mcp__slack__post_message`）或 `Bash` 呼叫 Slack Webhook，發送通知到指定 channel。
+
+腳本輸出中解析以下欄位：
+- `RESULT_URL`: Google Doc 連結
+- `RESULT_DRIVE_PATH`: 雲端路徑（例：`週一週四_Data_內會/20260311`）
+- `RESULT_SERIES_NAME`: 會議系列名稱
+- `RESULT_DATE`: 日期（YYYYMMDD）
+
+將日期轉為 `YYYY/MM/DD` 格式（例：`20260311` → `2026/03/11`），
+判斷日期是否為昨天，組合訊息並發送到使用者指定的 Slack channel：
+
+```
+昨天的 {RESULT_SERIES_NAME} 會議紀錄整理好囉！連結在下面，再麻煩大家確認。
+
+📄 連結： {RESULT_URL}
+
+📂 雲端： {RESULT_DRIVE_PATH}
+```
+
+若日期不是昨天（例如補處理較舊的錄音），將「昨天的」替換為對應日期，例如：
+```
+{YYYY/MM/DD} 的 {RESULT_SERIES_NAME} 會議紀錄整理好囉！...
+```
+
+## 自動化流程
+
+```
+音訊檔
+  ↓ ffmpeg 拆成 10 分鐘片段
+~/Downloads/{basename}_output_001.m4a ...
+  ↓ notebooklm-py 上傳
+NotebookLM（對應的 Notebook）
+  ↓ 等待 AI 分析（依音訊長度需 2–10 分鐘）
+  ↓ ReportFormat.CUSTOM + prompt.md + custom_prompt（含報告順序）
+會議記錄文字內容（可能含「與會者A/B/C...」）
+  ↓ Claude API 後處理（依報告順序推斷並替換匿名講者）
+  ↓ 注入 attendees 列表為「與會者」欄位
+  ↓ Google Docs API（Markdown 轉格式化文件）
+Google Doc：會議記錄_{系列名稱}_{YYYYMMDD}
+  ↓ Google Drive API
+{Shared Drive}/{系列資料夾}/{YYYYMMDD}/
+```
+
+## 輸出結果
+
+- **Google Doc 名稱**：`會議記錄_{series_name}_{YYYYMMDD}`
+- **位置**：`{folder_id 對應資料夾}/{YYYYMMDD}/`
+- **後續**：開啟連結，人工微調專案名稱、人名等細節
+
+## 音訊檔命名支援
+
+只要檔名含有連續 8 位數字（YYYYMMDD）即可自動提取日期：
+- `data_meeting_20260309.m4a` → `20260309`
+- `weekly_sync_20260312.mp3` → `20260312`
+
+## 自定義 Prompt
+
+預設 prompt 安裝後會複製到 `~/.config/generate-meeting-notes/prompt.md`，
+可直接編輯來調整會議記錄的格式和重點。預設內容見 `references/default-prompt.md`。
+
+## 疑難排解
+
+- **NotebookLM 認證失敗**：重新執行 `cd {SKILL_BASE_DIR} && uv run notebooklm login`
+- **Google Drive 權限不足**：重新執行 `gcloud auth login --enable-gdrive-access`
+- **找不到 Notebook**：確認 `config.json` 中 `notebook_name` 與 NotebookLM 完全一致
+- **找不到會議類型**：確認 `--meeting` 的值與 `config.json` 中 `meetings` 的 key 完全一致
+- **講者解析跳過**：確認已設定 `ANTHROPIC_API_KEY` 環境變數（`export ANTHROPIC_API_KEY=sk-ant-...`）
+- **設定重置**：重新執行 `cd {SKILL_BASE_DIR} && uv run scripts/setup.py`

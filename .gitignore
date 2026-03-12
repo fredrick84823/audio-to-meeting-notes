@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+.venv
+
+# Google credentials (sensitive)
+credentials.json
+credentials.json.bak
+*_token.json
+
+# macOS
+.DS_Store
