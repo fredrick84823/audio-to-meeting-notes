@@ -19,12 +19,15 @@
 ## 安裝
 
 ```bash
-git clone https://github.com/your-org/generate-meeting-notes.git
-cd generate-meeting-notes
+git clone https://github.com/fredrick84823/audio-to-meeting-notes.git
+cd audio-to-meeting-notes
 bash install.sh
 ```
 
-`install.sh` 會自動安裝 `uv`，並啟動互動式設定精靈（`setup.py`），引導完成：
+`install.sh` 會自動：
+1. 安裝 `uv`（Python 套件管理器）
+2. 複製 skill 到 `~/.claude/skills/audio-to-meeting-notes/`（Claude Code 自動載入）
+3. 啟動互動式設定精靈（`setup.py`），引導完成：
 - NotebookLM 登入
 - Google Drive 認證
 - 會議類型設定（Notebook 名稱、Shared Drive Folder ID 等）
@@ -34,13 +37,13 @@ bash install.sh
 ## 使用方式
 
 ```bash
-uv run scripts/generate_meeting_notes.py <音訊檔> --meeting <會議類型>
+uv run skill/scripts/generate_meeting_notes.py <音訊檔> --meeting <會議類型>
 ```
 
 **範例：**
 
 ```bash
-uv run scripts/generate_meeting_notes.py ~/Desktop/data_meeting_20260309.m4a --meeting data內會
+uv run skill/scripts/generate_meeting_notes.py ~/Desktop/data_meeting_20260309.m4a --meeting data內會
 ```
 
 音訊檔名需包含 `YYYYMMDD` 日期（例：`meeting_20260309.m4a`）。
@@ -96,16 +99,16 @@ Google Doc：會議記錄_{series_name}_{YYYYMMDD}
 
 | 腳本 | 說明 |
 |------|------|
-| `scripts/generate_meeting_notes.py` | 主流程腳本 |
-| `scripts/replace_speakers.py` | 批次替換 Google Doc 中的 `[Speaker N]` 佔位符 |
-| `scripts/setup.py` | 互動式設定精靈 |
+| `skill/scripts/generate_meeting_notes.py` | 主流程腳本 |
+| `skill/scripts/replace_speakers.py` | 批次替換 Google Doc 中的 `[Speaker N]` 佔位符 |
+| `skill/scripts/setup.py` | 互動式設定精靈 |
 
 ### replace_speakers.py
 
 當 NotebookLM 無法辨識發言者時，Google Doc 會留下 `[Speaker 1]`、`[Speaker 2]` 等佔位符，可用此腳本批次替換：
 
 ```bash
-uv run scripts/replace_speakers.py \
+uv run skill/scripts/replace_speakers.py \
   --doc-id https://docs.google.com/document/d/DOC_ID/edit \
   --mapping "Speaker 1=Alice" "Speaker 2=Bob"
 ```
@@ -113,7 +116,11 @@ uv run scripts/replace_speakers.py \
 ## 自定義 Prompt
 
 預設 prompt 安裝時複製至 `~/.config/generate-meeting-notes/prompt.md`，可直接編輯。
-原始範本見 [`references/default-prompt.md`](references/default-prompt.md)。
+原始範本見 [`skill/references/default-prompt.md`](skill/references/default-prompt.md)。
+
+## 依賴套件
+
+NotebookLM 自動化透過 [notebooklm-py](https://github.com/teng-lin/notebooklm-py?tab=readme-ov-file#complete-notebooklm-coverage) 實現，支援完整的 NotebookLM API 操作。
 
 ## 疑難排解
 

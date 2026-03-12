@@ -25,7 +25,7 @@ allowed-tools: Bash, Read, Write
 ## 首次設定
 
 ```bash
-cd {SKILL_BASE_DIR} && uv run scripts/setup.py
+cd {SKILL_BASE_DIR} && uv run skill/scripts/setup.py
 ```
 
 設定後產生 `~/.config/generate-meeting-notes/config.json`，結構如下：
@@ -89,12 +89,12 @@ cat ~/.config/generate-meeting-notes/config.json
 三個資訊都確認後執行：
 
 ```bash
-cd {SKILL_BASE_DIR} && uv run scripts/generate_meeting_notes.py <audio_file_path> --meeting <meeting_key>
+cd {SKILL_BASE_DIR} && uv run skill/scripts/generate_meeting_notes.py <audio_file_path> --meeting <meeting_key>
 ```
 
 範例：
 ```bash
-cd {SKILL_BASE_DIR} && uv run scripts/generate_meeting_notes.py ~/Desktop/data_professor_meeting_20260311.m4a --meeting data教授會議
+cd {SKILL_BASE_DIR} && uv run skill/scripts/generate_meeting_notes.py ~/Desktop/data_professor_meeting_20260311.m4a --meeting data教授會議
 ```
 
 `{SKILL_BASE_DIR}` 請替換為此 skill 的實際路徑（見系統訊息中的 "Base directory for this skill"）。
@@ -120,7 +120,7 @@ cd {SKILL_BASE_DIR} && uv run scripts/generate_meeting_notes.py ~/Desktop/data_p
    > 是否正確？有需要調整嗎？
 5. 確認後，用腳本批次替換 Google Doc 中的佔位符：
    ```bash
-   cd {SKILL_BASE_DIR} && uv run scripts/replace_speakers.py \
+   cd {SKILL_BASE_DIR} && uv run skill/scripts/replace_speakers.py \
      --doc-id <RESULT_URL 中的 doc id> \
      --mapping "Speaker 1=Fredrick" "Speaker 2=Frank" "Speaker 3=Mark"
    ```
@@ -196,4 +196,4 @@ Google Doc：會議記錄_{系列名稱}_{YYYYMMDD}
 - **找不到 Notebook**：確認 `config.json` 中 `notebook_name` 與 NotebookLM 完全一致
 - **找不到會議類型**：確認 `--meeting` 的值與 `config.json` 中 `meetings` 的 key 完全一致
 - **講者解析跳過**：確認已設定 `ANTHROPIC_API_KEY` 環境變數（`export ANTHROPIC_API_KEY=sk-ant-...`）
-- **設定重置**：重新執行 `cd {SKILL_BASE_DIR} && uv run scripts/setup.py`
+- **設定重置**：重新執行 `cd {SKILL_BASE_DIR} && uv run skill/scripts/setup.py`

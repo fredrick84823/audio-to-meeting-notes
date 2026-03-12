@@ -1,5 +1,5 @@
 #!/bin/bash
-# Generate Meeting Notes - 安裝腳本
+# audio-to-meeting-notes - 安裝腳本
 #
 # 使用方式（macOS / Linux）：
 #   bash install.sh
@@ -8,11 +8,12 @@
 
 set -e  # 任何指令失敗就停止
 
-SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SKILL_INSTALL_DIR="$HOME/.claude/skills/audio-to-meeting-notes"
 
 echo ""
 echo "╔══════════════════════════════════════════════════╗"
-echo "║      Generate Meeting Notes - 安裝中...          ║"
+echo "║    audio-to-meeting-notes - 安裝中...            ║"
 echo "╚══════════════════════════════════════════════════╝"
 echo ""
 
@@ -35,11 +36,25 @@ else
     echo "  ✅ uv 安裝成功"
 fi
 
-# ── 步驟 2：執行完整設定精靈 ───────────────────────────────────────────────────
+# ── 步驟 2：安裝 Claude skill ──────────────────────────────────────────────────
+
+echo ""
+echo "  ▶ 安裝 skill 到 ~/.claude/skills/audio-to-meeting-notes/ ..."
+
+mkdir -p "$SKILL_INSTALL_DIR"
+cp -r "$REPO_DIR/skill/." "$SKILL_INSTALL_DIR/"
+
+# 將 SKILL.md 中的 {SKILL_BASE_DIR} 替換為 repo 的實際路徑
+sed -i.bak "s|{SKILL_BASE_DIR}|$REPO_DIR|g" "$SKILL_INSTALL_DIR/SKILL.md"
+rm -f "$SKILL_INSTALL_DIR/SKILL.md.bak"
+
+echo "  ✅ skill 已安裝至 $SKILL_INSTALL_DIR"
+
+# ── 步驟 3：執行完整設定精靈 ───────────────────────────────────────────────────
 
 echo ""
 echo "  ▶ 啟動設定精靈..."
 echo ""
 
-cd "$SKILL_DIR"
-uv run scripts/setup.py
+cd "$REPO_DIR"
+uv run skill/scripts/setup.py
