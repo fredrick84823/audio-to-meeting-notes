@@ -1,4 +1,4 @@
-# generate-meeting-notes
+# audio-to-meeting-notes
 
 > Claude Code skill：將會議錄音透過 NotebookLM 自動轉換為 Google Doc 格式的結構化會議記錄。
 
