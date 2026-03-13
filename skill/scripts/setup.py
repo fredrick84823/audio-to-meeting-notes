@@ -262,13 +262,25 @@ def ask(prompt_text: str, default: str = "") -> str:
 
 def setup_config():
     existing_meetings = {}
+    existing_slack_token = ""
     if CONFIG_PATH.exists():
         with open(CONFIG_PATH, encoding="utf-8") as f:
             existing = json.load(f)
         existing_meetings = existing.get("meetings", {})
+        existing_slack_token = existing.get("slack_bot_token", "")
         info("找到現有設定（現有會議類型將保留，可新增或略過）")
 
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Slack Bot Token（全域設定）
+    print()
+    print("  【設定 Slack Bot Token】")
+    print("  至 api.slack.com → 你的 App → OAuth & Permissions → Bot User OAuth Token")
+    print("  格式：xoxb-xxxxxxxxxx-xxxxxxxxxx-xxxxxxxxxxxxxxxx")
+    slack_bot_token = ask(
+        "Slack Bot Token（空白跳過 Slack 通知功能）",
+        existing_slack_token,
+    )
 
     # 預設 prompt
     user_prompt = CONFIG_DIR / "prompt.md"
@@ -313,12 +325,18 @@ def setup_config():
             "會議系列簡稱（用於文件命名，例：Data內會）",
             existing_m.get("series_name", key),
         )
+        print("  請在 Slack 中右鍵點擊 channel → View channel details → 複製 Channel ID")
+        slack_channel = ask(
+            "Slack Channel ID（例：C0XXXXXXXXX，空白跳過）",
+            existing_m.get("slack_channel", ""),
+        )
 
         meetings[key] = {
             "notebook_name": notebook,
             "folder_id": folder_id,
             "folder_name": folder_name,
             "series_name": series_name,
+            "slack_channel": slack_channel,
             "attendees": existing_m.get("attendees", []),
             "custom_prompt": existing_m.get("custom_prompt", ""),
         }
@@ -329,6 +347,7 @@ def setup_config():
         warn("未設定任何會議類型，稍後請手動編輯 config.json")
 
     config = {
+        "slack_bot_token": slack_bot_token,
         "meetings": meetings,
         "prompt_path": str(user_prompt),
     }

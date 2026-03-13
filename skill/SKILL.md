@@ -78,11 +78,11 @@ cat ~/.config/generate-meeting-notes/config.json
 
 ### Step 3：確認 Slack channel
 
-先讀取 config，若該會議類型有設定 `slack_channel`（非空字串），直接使用並告知使用者：
-> 將發送通知到 config 設定的 channel（ID：`{slack_channel}`）。如需更改請告知。
+先讀取 config，若該會議類型有設定 `slack_channel`（非空字串），直接告知使用者：
+> 完成後將自動發送通知到 config 設定的 channel（ID：`{slack_channel}`）。如需更改請告知。
 
-若 `slack_channel` 為空，詢問使用者：
-> 會議記錄完成後要發到哪個 Slack channel？（例：`#rd-team`、`#general`）
+若 `slack_channel` 為空，提醒使用者：
+> 該會議類型尚未設定 Slack channel，完成後不會自動發送通知。如需設定，請重新執行 setup.py 並填入 Channel ID。
 
 ### Step 4：執行腳本
 
@@ -127,31 +127,13 @@ cd {SKILL_BASE_DIR} && uv run skill/scripts/generate_meeting_notes.py ~/Desktop/
 
 > **若 Google Doc 中沒有任何 `[Speaker N]`**，跳過此步驟。
 
-### Step 5：發送 Slack 通知
+### Step 5：Slack 通知（腳本自動處理）
 
-使用可用的 Slack MCP（例如 `mcp__slack__post_message`）或 `Bash` 呼叫 Slack Webhook，發送通知到指定 channel。
+Slack 通知由 `generate_meeting_notes.py` 在結束時自動呼叫 `send_slack_notification.py` 發送，**不需要 Agent 介入**。
 
-腳本輸出中解析以下欄位：
-- `RESULT_URL`: Google Doc 連結
-- `RESULT_DRIVE_PATH`: 雲端路徑（例：`週一週四_Data_內會/20260311`）
-- `RESULT_SERIES_NAME`: 會議系列名稱
-- `RESULT_DATE`: 日期（YYYYMMDD）
-
-將日期轉為 `YYYY/MM/DD` 格式（例：`20260311` → `2026/03/11`），
-判斷日期是否為昨天，組合訊息並發送到使用者指定的 Slack channel：
-
-```
-昨天的 {RESULT_SERIES_NAME} 會議紀錄整理好囉！連結在下面，再麻煩大家確認。
-
-📄 連結： {RESULT_URL}
-
-📂 雲端： {RESULT_DRIVE_PATH}
-```
-
-若日期不是昨天（例如補處理較舊的錄音），將「昨天的」替換為對應日期，例如：
-```
-{YYYY/MM/DD} 的 {RESULT_SERIES_NAME} 會議紀錄整理好囉！...
-```
+若腳本輸出出現 `⚠️  未設定 slack_channel` 或 `⚠️  Slack 通知失敗`，告知使用者原因：
+- 未設定：重新執行 `setup.py` 填入 Slack Channel ID 即可
+- 發送失敗：確認 Bot Token 正確，且 Bot 已加入目標 channel
 
 ## 自動化流程
 

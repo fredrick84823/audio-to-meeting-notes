@@ -563,7 +563,12 @@ def inject_attendees(content: str, attendees: list[str]) -> str:
 
 # ─── 清理 ──────────────────────────────────────────────────────────────────────
 
-def cleanup_segments(segments: list[Path]):
+def cleanup_segments(segments: list[Path], auto_delete: bool = False):
+    if auto_delete:
+        for seg in segments:
+            seg.unlink(missing_ok=True)
+        print(f"✅ 已刪除 {len(segments)} 個片段")
+        return
     try:
         confirm = input("\n是否刪除 ~/Downloads/ 中的音訊片段？(y/N): ").strip().lower()
     except EOFError:
@@ -576,7 +581,7 @@ def cleanup_segments(segments: list[Path]):
 
 # ─── 主程式 ────────────────────────────────────────────────────────────────────
 
-async def main(audio_file: str, meeting_key: str):
+async def main(audio_file: str, meeting_key: str, delete_segments: bool = False):
     config = load_config()
     meetings = config.get("meetings", {})
 
@@ -633,7 +638,20 @@ async def main(audio_file: str, meeting_key: str):
     print(f"RESULT_DATE: {date}")
     print("\n💡 接下來請人工微調：專案名稱、人名等細節")
 
-    cleanup_segments(segments)
+    # 6. 發送 Slack 通知
+    slack_channel = meeting.get("slack_channel", "").strip()
+    if slack_channel:
+        print(f"\n📣 發送 Slack 通知到 {slack_channel}...")
+        try:
+            from send_slack_notification import send_notification
+            send_notification(slack_channel, doc_url, drive_path, meeting["series_name"], date)
+        except Exception as e:
+            print(f"⚠️  Slack 通知失敗（不影響結果）：{e}")
+    else:
+        print("\n⚠️  未設定 slack_channel，跳過 Slack 通知")
+        print("   如需通知，請在 config.json 對應的會議類型中加入 slack_channel")
+
+    cleanup_segments(segments, auto_delete=delete_segments)
 
 
 if __name__ == "__main__":
@@ -646,6 +664,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("audio_file", help="音訊檔路徑（檔名需含 YYYYMMDD）")
     parser.add_argument("--meeting", "-m", required=True, help="會議類型（對應 config.json 中的 meetings key）")
+    parser.add_argument("--delete-segments", action="store_true", help="完成後自動刪除 ~/Downloads/ 中的音訊片段，不詢問確認")
     args = parser.parse_args()
 
-    asyncio.run(main(args.audio_file, args.meeting))
+    asyncio.run(main(args.audio_file, args.meeting, delete_segments=args.delete_segments))
