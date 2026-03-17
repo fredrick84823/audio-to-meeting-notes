@@ -13,8 +13,14 @@
 ## 前置條件
 
 - macOS 或 Linux
+- `ffmpeg`（`brew install ffmpeg`）
 - Google 帳號（有 Shared Drive 存取權限）
 - [NotebookLM](https://notebooklm.google.com) 帳號，且已手動建立對應的 Notebook
+
+### Slack 通知（選填）
+
+Slack 通知需要 Bot Token（`xoxb-...`）。Token 不包含在此 repo 中，請私訊 Fredrick 索取。
+取得後在 `setup.py` 設定精靈中填入，或直接寫入 `~/.config/generate-meeting-notes/config.json` 的 `slack_bot_token` 欄位。
 
 ## 安裝
 
@@ -24,9 +30,11 @@ cd audio-to-meeting-notes
 bash install.sh
 ```
 
+> ⚠️ **安裝後請勿移動 clone 的目錄**。`install.sh` 會將目錄的絕對路徑寫入 skill 設定，移動後 skill 將無法執行。若不小心移動了，重新執行 `bash install.sh` 即可修復。
+
 `install.sh` 會自動：
 1. 安裝 `uv`（Python 套件管理器）
-2. 複製 skill 到 `~/.claude/skills/audio-to-meeting-notes/`（Claude Code 自動載入）
+2. 複製 skill 到 `~/.claude/skills/generate-meeting-notes/`（Claude Code 自動載入）
 3. 啟動互動式設定精靈（`setup.py`），引導完成：
 - NotebookLM 登入
 - Google Drive 認證
@@ -75,7 +83,7 @@ uv run skill/scripts/generate_meeting_notes.py ~/Desktop/data_meeting_20260309.m
 | `folder_id` | Shared Drive 資料夾 ID（從 URL 取得） |
 | `folder_name` | Slack 通知顯示的雲端路徑名稱 |
 | `series_name` | 文件命名用的會議系列簡稱 |
-| `slack_channel` | Slack channel ID（留空則由 agent 詢問） |
+| `slack_channel` | Slack channel ID（留空則不發送通知） |
 | `attendees` | 與會者清單，自動注入 Google Doc |
 | `custom_prompt` | 附加給 NotebookLM 的補充說明（例如報告順序） |
 

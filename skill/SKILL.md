@@ -1,14 +1,12 @@
 ---
 name: generate-meeting-notes
 description: >
-  自動化產生會議記錄的完整端到端流程。接受會議錄音檔（檔名含 YYYYMMDD 日期，例：
-  data_meeting_20260309.m4a），自動拆分音訊、上傳至 NotebookLM、等待 AI 處理、
-  用自定義 prompt 產生結構化會議記錄，並建立 Google Doc 移至公司 Shared Drive。
-  支援多種會議類型（data內會、pm會議、data教授會議等），每種類型各自對應獨立的
-  Notebook 與 Shared Drive 資料夾。
-  當使用者說「產生會議記錄」、「幫我處理這次的會議記錄」、「generate meeting notes」、
-  「處理錄音檔」、提到要把音訊上傳 NotebookLM 或將錄音轉成 Google Doc 會議記錄時，
-  請主動使用此 skill。
+  當使用者提到錄音檔（.m4a、.mp3、.wav 等）、想產生會議記錄、處理音訊、
+  上傳至 NotebookLM、或說「幫我處理這次會議」、「generate meeting notes」、
+  「音訊轉文字」、「整理會議內容」時，請主動使用此 skill。
+  功能：自動將會議錄音拆分上傳至 NotebookLM → AI 分析 → 產生結構化繁體中文會議記錄
+  → 建立 Google Doc → 移至公司 Shared Drive 指定資料夾 → 發送 Slack 通知。
+  支援多種會議類型，每種類型對應獨立的 Notebook 與 Drive 資料夾。
 allowed-tools: Bash, Read, Write
 ---
 
@@ -18,9 +16,10 @@ allowed-tools: Bash, Read, Write
 
 ## 使用前提
 
-1. 已執行 NotebookLM 認證（首次設定時會引導）
-2. 已設定 Google Drive 認證（首次設定時會引導）
-3. 已完成首次設定（見下方）
+1. 已安裝 `ffmpeg`（`brew install ffmpeg`）
+2. 已執行 NotebookLM 認證（首次設定時會引導）
+3. 已設定 Google Drive 認證（首次設定時會引導）
+4. 已完成首次設定（見下方）
 
 ## 首次設定
 
@@ -38,8 +37,9 @@ cd {SKILL_BASE_DIR} && uv run skill/scripts/setup.py
       "folder_id": "1ItMYP0...",
       "folder_name": "週一週四_Data_內會",
       "series_name": "Data內會",
-      "attendees": ["Fredrick", "Frank", "Mark", "Felix", "Nina"],
-      "custom_prompt": "本次會議報告順序固定如下：Fredrick → Frank → Mark → Felix，皆向 Nina（PM）報告。"
+      "slack_channel": "C03XXXXXXX",
+      "attendees": ["Alice", "Bob", "Carol", "PM-Name"],
+      "custom_prompt": "本次會議報告順序固定如下：Alice → Bob → Carol，皆向 PM-Name（PM）報告。"
     }
   },
   "prompt_path": "~/.config/generate-meeting-notes/prompt.md"
@@ -86,18 +86,25 @@ cat ~/.config/generate-meeting-notes/config.json
 
 ### Step 4：執行腳本
 
-三個資訊都確認後執行：
+三個資訊都確認後執行（加上 `--delete-segments` 讓腳本完成後自動清理暫存片段，不需手動確認）：
 
 ```bash
-cd {SKILL_BASE_DIR} && uv run skill/scripts/generate_meeting_notes.py <audio_file_path> --meeting <meeting_key>
+cd {SKILL_BASE_DIR} && uv run skill/scripts/generate_meeting_notes.py <audio_file_path> --meeting <meeting_key> --delete-segments
 ```
 
 範例：
 ```bash
-cd {SKILL_BASE_DIR} && uv run skill/scripts/generate_meeting_notes.py ~/Desktop/data_professor_meeting_20260311.m4a --meeting data教授會議
+cd {SKILL_BASE_DIR} && uv run skill/scripts/generate_meeting_notes.py ~/Desktop/data_professor_meeting_20260311.m4a --meeting data教授會議 --delete-segments
 ```
 
-`{SKILL_BASE_DIR}` 請替換為此 skill 的實際路徑（見系統訊息中的 "Base directory for this skill"）。
+腳本結束時會輸出以下幾行，**務必從 stdout 解析並記住 `RESULT_URL`**，後續步驟會用到：
+
+```
+RESULT_URL: https://docs.google.com/document/d/<doc_id>/edit
+RESULT_DRIVE_PATH: 週一週四_Data_內會/20260316
+RESULT_SERIES_NAME: Data內會
+RESULT_DATE: 20260316
+```
 
 ### Step 4.5：解析匿名發言者（若有 [Speaker N] 佔位符）
 
@@ -109,8 +116,8 @@ cd {SKILL_BASE_DIR} && uv run skill/scripts/generate_meeting_notes.py ~/Desktop/
    ```bash
    cat ~/.config/generate-meeting-notes/config.json
    ```
-2. 開啟 `RESULT_URL` 查看 Google Doc 內容（或請使用者貼上部分內容）
-3. 根據 `custom_prompt` 中的報告順序與 `attendees` 清單，推斷各 Speaker 對應誰
+2. **請使用者開啟 `RESULT_URL` 的連結，並將 Google Doc 的前 30 行內容貼回對話**（Agent 無法直接開啟 URL）
+3. 根據 `custom_prompt` 中的報告順序與 `attendees` 清單，以及使用者貼回的內容，推斷各 Speaker 對應誰
 4. **向使用者確認對應關係**，例如：
    > 根據報告順序，我推測：
    > - [Speaker 1] → Fredrick
@@ -146,7 +153,6 @@ NotebookLM（對應的 Notebook）
   ↓ 等待 AI 分析（依音訊長度需 2–10 分鐘）
   ↓ ReportFormat.CUSTOM + prompt.md + custom_prompt（含報告順序）
 會議記錄文字內容（可能含「與會者A/B/C...」）
-  ↓ Claude API 後處理（依報告順序推斷並替換匿名講者）
   ↓ 注入 attendees 列表為「與會者」欄位
   ↓ Google Docs API（Markdown 轉格式化文件）
 Google Doc：會議記錄_{系列名稱}_{YYYYMMDD}
@@ -173,9 +179,9 @@ Google Doc：會議記錄_{系列名稱}_{YYYYMMDD}
 
 ## 疑難排解
 
+- **ffmpeg 找不到**：執行 `brew install ffmpeg`（macOS），或 `sudo apt install ffmpeg`（Linux）
 - **NotebookLM 認證失敗**：重新執行 `cd {SKILL_BASE_DIR} && uv run notebooklm login`
 - **Google Drive 權限不足**：重新執行 `gcloud auth login --enable-gdrive-access`
 - **找不到 Notebook**：確認 `config.json` 中 `notebook_name` 與 NotebookLM 完全一致
 - **找不到會議類型**：確認 `--meeting` 的值與 `config.json` 中 `meetings` 的 key 完全一致
-- **講者解析跳過**：確認已設定 `ANTHROPIC_API_KEY` 環境變數（`export ANTHROPIC_API_KEY=sk-ant-...`）
 - **設定重置**：重新執行 `cd {SKILL_BASE_DIR} && uv run skill/scripts/setup.py`

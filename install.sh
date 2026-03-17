@@ -9,11 +9,11 @@
 set -e  # 任何指令失敗就停止
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SKILL_INSTALL_DIR="$HOME/.claude/skills/audio-to-meeting-notes"
+SKILL_INSTALL_DIR="$HOME/.claude/skills/generate-meeting-notes"
 
 echo ""
 echo "╔══════════════════════════════════════════════════╗"
-echo "║    audio-to-meeting-notes - 安裝中...            ║"
+echo "║    generate-meeting-notes - 安裝中...            ║"
 echo "╚══════════════════════════════════════════════════╝"
 echo ""
 
@@ -39,7 +39,9 @@ fi
 # ── 步驟 2：安裝 Claude skill ──────────────────────────────────────────────────
 
 echo ""
-echo "  ▶ 安裝 skill 到 ~/.claude/skills/audio-to-meeting-notes/ ..."
+echo "  ▶ 安裝 skill 到 ~/.claude/skills/generate-meeting-notes/ ..."
+echo "  ⚠️  注意：安裝完成後請勿移動此目錄（$REPO_DIR）"
+echo "       若移動後 skill 失效，請重新執行 bash install.sh"
 
 mkdir -p "$SKILL_INSTALL_DIR"
 cp -r "$REPO_DIR/skill/." "$SKILL_INSTALL_DIR/"
